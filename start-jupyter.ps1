@@ -26,7 +26,7 @@ function main() {
     jupyter --paths
 
     write-host 'starting jupyter' -ForegroundColor Green
-    jupyter lab
+    start jupyter lab
 
 }
 
