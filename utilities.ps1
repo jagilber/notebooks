@@ -75,16 +75,15 @@ function add-patterns([system.collections.Generic.List[hashtable]]$patterns = $n
         [void]$global:patterns.Add(@{$env:USERNAME = '{{user}}' })
         [void]$global:patterns.Add(@{$env:USERDOMAIN = '{{domain}}' })
         [void]$global:patterns.Add(@{'[A-Fa-f0-9]{8}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{12}' = 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' }) # any guid
-        [void]$global:patterns.Add(@{'[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' = 'xxx.xxx.xxx.xxx' }) # any ipv4
-        [void]$global:patterns.Add(@{'[0-9A-Fa-f]{40}' = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' }) # cert thumb
-        [void]$global:patterns.Add(@{'[0-9A-Fa-f]{32}' = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' }) # secret
+        [void]$global:patterns.Add(@{'\b[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\b' = 'xxx.xxx.xxx.xxx' }) # any ipv4
+        [void]$global:patterns.Add(@{'\b[0-9A-Fa-f]{40}\b' = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' }) # cert thumb
+        [void]$global:patterns.Add(@{'\b[0-9A-Fa-f]{32}\b' = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' }) # secret
 
     }
-    else {
-        foreach($pattern in $patterns) {
-            if(!$global:patterns.Exists($pattern)) {
-                [void]$global:patterns.Add($pattern)
-            }
+
+    foreach($pattern in $patterns) {
+        if(!$global:patterns.Exists($pattern)) {
+            [void]$global:patterns.Add($pattern)
         }
     }
     return $global:patterns
