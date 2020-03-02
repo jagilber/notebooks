@@ -35,7 +35,7 @@ function clean-files($filesPattern = '\.ipynb', $filesExcludePattern = '-pr\.ipy
     $filesToCheck = [io.directory]::GetFiles($psscriptroot, '*.*') #, [IO.SearchOption]::AllDirectories)
 
     foreach ($file in $filesToCheck) {
-        $tempFile = "$pwd\$([io.path]::getfileName($file))"
+        $tempFile = "$psscriptroot\temp\$([io.path]::getfileName($file))"
         write-host "enumerated file $file"
         if ([regex]::IsMatch($file, $filesPattern, [text.RegularExpressions.RegexOptions]::IgnoreCase )) {
             if ($filesExcludePattern -and 
