@@ -31,7 +31,7 @@ function connect-arm() {
 
 
 function clean-files($filesPattern = '\.ipynb', $filesExcludePattern = '-pr\.ipynb', [switch]$overwrite) {
-#function clean-files($filesPattern = '-pr\.ipynb', $filesExcludePattern = '', [switch]$overwrite) {
+    #function clean-files($filesPattern = '-pr\.ipynb', $filesExcludePattern = '', [switch]$overwrite) {
     $filesToCheck = [io.directory]::GetFiles($psscriptroot, '*.*') #, [IO.SearchOption]::AllDirectories)
 
     foreach ($file in $filesToCheck) {
@@ -44,19 +44,23 @@ function clean-files($filesPattern = '\.ipynb', $filesExcludePattern = '-pr\.ipy
                 continue
             }
 
-            $tempFileBefore = "$tempFile-before.json"
-            write-host "saving before file $tempFileBefore"
-            copy $file $tempFileBefore
             
+            write-host "checking $file" -ForegroundColor Cyan
             $fileContent = check-file -file $file
+
+            if ($fileContent) {
+                $tempFileBefore = "$tempFile-before.json"
+                write-host "saving before file $tempFileBefore"
+                copy $file $tempFileBefore
+
+                $tempFileAfter = "$tempFile-after.json"
+                write-host "saving after file $tempFileAfter"
+                $fileContent | out-file $tempFileAfter
             
-            $tempFileAfter = "$tempFile-after.json"
-            write-host "saving after file $tempFileAfter"
-            $fileContent | out-file $tempFileAfter
-            
-            if($overwrite) {
-                write-host "overwriting file $file"
-                $fileContent | out-file $file
+                if ($overwrite) {
+                    write-host "overwriting file $file"
+                    $fileContent | out-file $file
+                }
             }
         }
     }
@@ -67,18 +71,18 @@ function add-patterns([system.collections.Generic.List[hashtable]]$patterns = $n
         $global:patterns = [collections.arrayList]::new()
 
         if ($useArm) {
-            [void]$global:patterns.Add(@{((Get-AzSubscription).Name -join "|")="{{subscriptionName}}"})
-            [void]$global:patterns.Add(@{((Get-AzSubscription).Id -join "|")="{{subscription}}"})
-            [void]$global:patterns.Add(@{((Get-AzSubscription).TenantId -join "|")="{{tenant}}"})
-            [void]$global:patterns.Add(@{((Get-AzResourceGroup).ResourceGroupName -join "|") = "{{resourceGroupName}}"})
-            [void]$global:patterns.Add(@{(((Get-AzResourceGroup).Location | sort -unique) -join "|") = "{{location}}"})
+            [void]$global:patterns.Add(@{((Get-AzSubscription).Name -join "|") = "{{subscriptionName}}" })
+            [void]$global:patterns.Add(@{((Get-AzSubscription).Id -join "|") = "{{subscription}}" })
+            [void]$global:patterns.Add(@{((Get-AzSubscription).TenantId -join "|") = "{{tenant}}" })
+            [void]$global:patterns.Add(@{((Get-AzResourceGroup).ResourceGroupName -join "|") = "{{resourceGroupName}}" })
+            [void]$global:patterns.Add(@{(((Get-AzResourceGroup).Location | sort -unique) -join "|") = "{{location}}" })
 
-            foreach($resource in (get-azresource | select ResourceType, Name)) {
-                [void]$global:patterns.Add(@{ ([regex]::Escape($resource.Name)) = "{{$($resource.ResourceType)}}"})
+            foreach ($resource in (get-azresource | select ResourceType, Name)) {
+                [void]$global:patterns.Add(@{ ([regex]::Escape($resource.Name)) = "{{$($resource.ResourceType)}}" })
             }
         }
 
-        [void]$global:patterns.Add(@{'\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b.'='{{email}}'})
+        [void]$global:patterns.Add(@{'\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b.' = '{{email}}' })
         [void]$global:patterns.Add(@{$env:COMPUTERNAME = '{{computer}}' })
         [void]$global:patterns.Add(@{$env:USERNAME = '{{user}}' })
         [void]$global:patterns.Add(@{$env:USERDOMAIN = '{{domain}}' })
@@ -89,8 +93,8 @@ function add-patterns([system.collections.Generic.List[hashtable]]$patterns = $n
 
     }
 
-    foreach($pattern in $patterns) {
-        if(!$global:patterns.Exists($pattern)) {
+    foreach ($pattern in $patterns) {
+        if (!$global:patterns.Exists($pattern)) {
             [void]$global:patterns.Add($pattern)
         }
     }
@@ -98,13 +102,18 @@ function add-patterns([system.collections.Generic.List[hashtable]]$patterns = $n
 }
 
 function check-file($file) {
-    write-host "checking $file" -ForegroundColor Cyan        
     $fileContent = Get-Content -Raw $file
-    return write-clean -fileContent $fileContent
+    $script:foundMatches = 0
+    $fileContent = write-clean -fileContent $fileContent
+    if($script:foundMatches) {
+        return $fileContent.Trim()
+    }
+
+    return $null
 }
 
 function write-clean($fileContent) {
-    if(!($fileContent -is [string])) {
+    if (!($fileContent -is [string])) {
         $fileContent = $fileContent | fl * | out-string
     }
 
@@ -117,6 +126,7 @@ function write-clean($fileContent) {
 function replace-string($inputstring, $pattern, $replacement) {
     if ([regex]::IsMatch($inputstring, $pattern, [text.RegularExpressions.RegexOptions]::IgnoreCase )) {
         write-verbose "found match $pattern"
+        $script:foundMatches++
         return [regex]::Replace($inputstring, $pattern, $replacement, [text.RegularExpressions.RegexOptions]::IgnoreCase )
     }
     write-verbose "no match $pattern"
@@ -129,10 +139,10 @@ set-alias -Name write-host -Value write-clean -option AllScope -Scope Global
 # private info
 if ((test-path .\utilities-pr.ps1)) { . .\utilities-pr.ps1 }
 
-if($useArm) {write-host (connect-arm)}
+if ($useArm) { connect-arm }
 
 # setup ignored working dir
-if(!(test-path .\temp)) {
+if (!(test-path .\temp)) {
     mkdir .\temp
 }
 
