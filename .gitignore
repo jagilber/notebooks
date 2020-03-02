@@ -258,3 +258,4 @@ ModelManifest.xml
 *-pr.*
 .ipynb_checkpoints
 temp
+# *.json

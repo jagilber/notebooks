@@ -30,33 +30,41 @@ function connect-arm() {
 }
 
 
-function clean-files() {
-    param(
-        $filesPattern = "-pr.ipynb",
-        $filesExcludePattern = "",
-        $stringToClean = ""
-    )
-
-    $filesToCheck = [io.directory]::GetFiles($pwd, '*.*', [IO.SearchOption]::AllDirectories)
+function clean-files($filesPattern = '\.ipynb', $filesExcludePattern = '-pr\.ipynb', [switch]$overwrite) {
+#function clean-files($filesPattern = '-pr\.ipynb', $filesExcludePattern = '', [switch]$overwrite) {
+    $filesToCheck = [io.directory]::GetFiles($psscriptroot, '*.*') #, [IO.SearchOption]::AllDirectories)
 
     foreach ($file in $filesToCheck) {
-        write-verbose "enumerated file $file"
+        $tempFile = "$pwd\$([io.path]::getfileName($file))"
+        write-host "enumerated file $file"
         if ([regex]::IsMatch($file, $filesPattern, [text.RegularExpressions.RegexOptions]::IgnoreCase )) {
             if ($filesExcludePattern -and 
                 [regex]::IsMatch($file, $filesExcludePattern, [text.RegularExpressions.RegexOptions]::IgnoreCase )) {
+                write-host "skipping excluded file $file"
                 continue
             }
 
+            $tempFileBefore = "$tempFile-before.json"
+            write-host "saving before file $tempFileBefore"
+            copy $file $tempFileBefore
+            
             $fileContent = check-file -file $file
-            $fileContent | out-file $file.replace('-pr.', '.')
+            
+            $tempFileAfter = "$tempFile-after.json"
+            write-host "saving after file $tempFileAfter"
+            $fileContent | out-file $tempFileAfter
+            
+            if($overwrite) {
+                write-host "overwriting file $file"
+                $fileContent | out-file $file
+            }
         }
     }
-
 }
 
 function add-patterns([system.collections.Generic.List[hashtable]]$patterns = $null) {
     if (!$global:patterns) {
-        $global:patterns = [system.collections.Generic.List[hashtable]]::new()
+        $global:patterns = [collections.arrayList]::new()
 
         if ($useArm) {
             [void]$global:patterns.Add(@{((Get-AzSubscription).Name -join "|")="{{subscriptionName}}"})
@@ -115,11 +123,18 @@ function replace-string($inputstring, $pattern, $replacement) {
     return $inputstring
 }
 
+# setup alias to redact write-host strings
 set-alias -Name write-host -Value write-clean -option AllScope -Scope Global
 
 # private info
 if ((test-path .\utilities-pr.ps1)) { . .\utilities-pr.ps1 }
 
-if($useArm) {connect-arm}
+if($useArm) {write-host (connect-arm)}
 
-Set-Location -Path .\temp
+# setup ignored working dir
+if(!(test-path .\temp)) {
+    mkdir .\temp
+}
+
+# use temp dir as it is ignored
+set-location -Path .\temp
