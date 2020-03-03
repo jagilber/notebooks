@@ -117,6 +117,7 @@ function clean-files($filesPattern = '\.ipynb', $filesExcludePattern = '-pr\.ipy
 }
 
 function git-commit() {
+    connect-arm
     clean-files -overwrite
     foreach ($fcompare in ($global:modifiedFiles).getenumerator()) {
         write-host "cmd /c fc $($fcompare.key) $($fcompare.value)"
