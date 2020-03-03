@@ -122,6 +122,7 @@ function git-commit() {
         write-host "cmd /c fc $($fcompare.key) $($fcompare.value)"
         cmd /c fc $fcompare.key $fcompare.value
     }
+    #git diff
     git status
     write-host "run git add --all and git commit after reviewing cleaned files." -foregroundcolor yellow
 }
