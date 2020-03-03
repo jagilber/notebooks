@@ -7,20 +7,17 @@ param(
 )
 
 function main() {
+    [net.servicePointManager]::Expect100Continue = $true;
+    [net.servicePointManager]::SecurityProtocol = [net.SecurityProtocolType]::Tls12;
 
     $error.Clear()
     if (!$env:Path.Contains($pwd)) {
         $env:Path += ";$pwd"
     }
 
-    (jupyter) | out-null
-
-    if ($error) {
-        if(!(install-jupyter)) {
-            return $false
-        }
+    if(!(check-pip) -or !(check-dotnet) -or !(check-jupyter)) {
+        return $false
     }
-
 
     jupyter kernelspec list
     jupyter --paths
@@ -38,20 +35,56 @@ function install-jupyter(){
     }
 
     write-host 'installing jupyter' -ForegroundColor Green
+
+    write-host 'pip install jupyter' -ForegroundColor Green
+    pip install jupyter
+
+    write-host 'pip install jupyterlab' -ForegroundColor Green
+    pip install jupyterlab
+
+    write-host 'dotnet tool install --global Microsoft.dotnet-interactive' -ForegroundColor Green
+    dotnet tool install --global Microsoft.dotnet-interactive
+
+    write-host 'dotnet tool install --global dotnet-try' -ForegroundColor Green
+    dotnet tool install --global dotnet-try
+
+    write-host 'dotnet try jupyter install' -ForegroundColor Green
+    dotnet try jupyter install
+    return $true
+}
+
+function check-dotnet() {
+    (dotnet) | out-null
+
+    if ($error) {
+        write-warning 'dotnet not found. install latest dotnet sdk from https://dotnet.microsoft.com/download/visual-studio-sdks'
+        write-warning 'restart powershell / vscode and restart script'
+        start-process 'https://dotnet.microsoft.com/download/visual-studio-sdks'
+        return $false
+    }
+}
+
+function check-jupyter () {
+    (jupyter) | out-null
+
+    if ($error) {
+        if(!(install-jupyter)) {
+            return $false
+        }
+    }
+}
+
+function check-pip() {
     $error.Clear()
     (pip) | out-null
 
     if ($error) {
-        write-error 'pip not found. install latest python and check %path% https://www.python.org/downloads/'
+        write-warning 'pip not found. install latest python from https://www.python.org/downloads/'
+        write-warning 'check / add python dir to %path%'
+        write-warning 'restart powershell / vscode and restart script'
+        start-process 'https://www.python.org/downloads/'
         return $false
     }
-
-
-    pip install jupyter
-    pip install jupyterlab
-    dotnet tool install --global Microsoft.dotnet-interactive
-    dotnet tool install --global dotnet-try
-    dotnet try jupyter install
     return $true
 }
 
