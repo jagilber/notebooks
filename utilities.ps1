@@ -7,6 +7,8 @@ param(
     [switch]$useArm = $false
 )
 
+$global:modifiedFiles = @{}
+
 function connect-arm() {
     $error.clear()
     if (!(get-command get-azcontext)) {
@@ -26,43 +28,6 @@ function connect-arm() {
     else {
         write-host (get-azcontext | fl * | out-string)
         'connected'
-    }
-}
-
-
-function clean-files($filesPattern = '\.ipynb', $filesExcludePattern = '-pr\.ipynb', [switch]$overwrite) {
-    #function clean-files($filesPattern = '-pr\.ipynb', $filesExcludePattern = '', [switch]$overwrite) {
-    $filesToCheck = [io.directory]::GetFiles($psscriptroot, '*.*') #, [IO.SearchOption]::AllDirectories)
-
-    foreach ($file in $filesToCheck) {
-        $tempFile = "$psscriptroot\temp\$([io.path]::getfileName($file))"
-        write-host "enumerated file $file"
-        if ([regex]::IsMatch($file, $filesPattern, [text.RegularExpressions.RegexOptions]::IgnoreCase )) {
-            if ($filesExcludePattern -and 
-                [regex]::IsMatch($file, $filesExcludePattern, [text.RegularExpressions.RegexOptions]::IgnoreCase )) {
-                write-host "skipping excluded file $file"
-                continue
-            }
-
-            
-            write-host "checking $file" -ForegroundColor Cyan
-            $fileContent = check-file -file $file
-
-            if ($fileContent) {
-                $tempFileBefore = "$tempFile-before.json"
-                write-host "saving before file $tempFileBefore"
-                copy $file $tempFileBefore
-
-                $tempFileAfter = "$tempFile-after.json"
-                write-host "saving after file $tempFileAfter"
-                $fileContent | out-file $tempFileAfter
-            
-                if ($overwrite) {
-                    write-host "overwriting file $file"
-                    $fileContent | out-file $file
-                }
-            }
-        }
     }
 }
 
@@ -105,11 +70,60 @@ function check-file($file) {
     $fileContent = Get-Content -Raw $file
     $script:foundMatches = 0
     $fileContent = write-clean -fileContent $fileContent
-    if($script:foundMatches) {
+    if ($script:foundMatches) {
         return $fileContent.Trim()
     }
 
     return $null
+}
+
+function clean-files($filesPattern = '\.ipynb', $filesExcludePattern = '-pr\.ipynb', [switch]$overwrite) {
+    #function clean-files($filesPattern = '-pr\.ipynb', $filesExcludePattern = '', [switch]$overwrite) {
+    $filesToCheck = [io.directory]::GetFiles($psscriptroot, '*.*') #, [IO.SearchOption]::AllDirectories)
+    $global:modifiedFiles = @{ }
+
+    foreach ($file in $filesToCheck) {
+        $tempFile = "$psscriptroot\temp\$([io.path]::getfileName($file))"
+        write-host "enumerated file $file"
+        if ([regex]::IsMatch($file, $filesPattern, [text.RegularExpressions.RegexOptions]::IgnoreCase )) {
+            if ($filesExcludePattern -and 
+                [regex]::IsMatch($file, $filesExcludePattern, [text.RegularExpressions.RegexOptions]::IgnoreCase )) {
+                write-host "skipping excluded file $file"
+                continue
+            }
+
+            
+            write-host "checking $file" -ForegroundColor Cyan
+            $fileContent = check-file -file $file
+
+            if ($fileContent) {
+                $tempFileBefore = "$tempFile-before.json"
+                write-host "saving before file $tempFileBefore"
+                copy $file $tempFileBefore
+
+                $tempFileAfter = "$tempFile-after.json"
+                write-host "saving after file $tempFileAfter"
+                $fileContent | out-file $tempFileAfter
+            
+                [void]$global:modifiedFiles.Add($tempFileBefore, $tempFileAfter)
+                if ($overwrite) {
+                    write-host "overwriting file $file"
+                    $fileContent | out-file $file
+                }
+            }
+        }
+    }
+    return $fileCompares
+}
+
+function git-commit() {
+    clean-files -overwrite
+    foreach ($fcompare in ($global:modifiedFiles).getenumerator()) {
+        write-host "cmd /c fc $($fcompare.key) $($fcompare.value)"
+        cmd /c fc $fcompare.key $fcompare.value
+    }
+    git status
+    write-host "run git add --all and git commit after reviewing cleaned files." -foregroundcolor yellow
 }
 
 function write-clean($fileContent) {
@@ -120,7 +134,8 @@ function write-clean($fileContent) {
     foreach ($pattern in add-patterns) {
         $fileContent = replace-string -inputstring $fileContent -pattern $pattern.Keys[0] -replacement $pattern.Values[0]
     }
-    return $fileContent
+    #return $fileContent
+    write-output $fileContent
 }
 
 function replace-string($inputstring, $pattern, $replacement) {
@@ -133,11 +148,24 @@ function replace-string($inputstring, $pattern, $replacement) {
     return $inputstring
 }
 
-# setup alias to redact write-host strings
-set-alias -Name write-host -Value write-clean -option AllScope -Scope Global
+function set-aliases([switch]$remove) {
+    if (!$remove) {
+        # setup alias to redact write-host strings
+        set-alias -Name write-host -Value write-clean -option AllScope -Scope Global
+        # set-alias -Name write-warning -Value write-clean -option AllScope -Scope Global
+        # set-alias -Name write-error -Value write-clean -option AllScope -Scope Global
+    }
+    else {
+        remove-alias -Name write-host -Scope Global -Force
+        # remove-alias -Name write-warning -Scope Global -Force
+        # remove-alias -Name write-error -Scope Global -Force
+    }
+}
+
+set-aliases
 
 # private info
-if ((test-path .\utilities-pr.ps1)) { . .\utilities-pr.ps1 }
+if ((test-path .\pr\utilities-pr.ps1)) { . .\pr\utilities-pr.ps1 }
 
 if ($useArm) { connect-arm }
 
